@@ -59,8 +59,11 @@ export function saveSnapshot(snapshot: PersistedSnapshot): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(payload))
 }
 
-export function resetSnapshot(): PersistedSnapshot {
-  const next = createSeedSnapshot()
+export function resetSnapshot(sessionUserId: string | null = null): PersistedSnapshot {
+  const next = createSeedSnapshot(sessionUserId)
+  if (next.sessionUserId && !next.users.some((u) => u.id === next.sessionUserId)) {
+    next.sessionUserId = null
+  }
   saveSnapshot(next)
   return next
 }

@@ -18,6 +18,7 @@ import {
   isAdminEmail,
   mockHash,
   platformTake,
+  recordOutcomeCompletion,
 } from '../lib/utils'
 
 const ORIGINAL_NINE = [
@@ -187,5 +188,23 @@ describe('repository persistence', () => {
     expect(reset.users).toHaveLength(SEED_USERS.length)
     expect(reset.sessionUserId).toBeNull()
     expect(loadSnapshot().users).toHaveLength(SEED_USERS.length)
+  })
+
+  it('keeps a seeded session user across reset', () => {
+    saveSnapshot(createSeedSnapshot('usr_buyer'))
+    const reset = resetSnapshot('usr_buyer')
+    expect(reset.sessionUserId).toBe('usr_buyer')
+    expect(reset.users).toHaveLength(SEED_USERS.length)
+  })
+})
+
+describe('recordOutcomeCompletion', () => {
+  it('preserves seeded history when a new order completes', () => {
+    const next = recordOutcomeCompletion(
+      { totalOrders: 5, completionRate: 1, avgTimeToOutcomeHours: 132 },
+      1,
+    )
+    expect(next.completionRate).toBe(1)
+    expect(next.avgTimeToOutcomeHours).toBeGreaterThan(0)
   })
 })

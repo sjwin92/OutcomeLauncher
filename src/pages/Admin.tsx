@@ -59,7 +59,7 @@ export function Admin() {
               min={0}
               max={30}
               step="0.1"
-              value={(settings.takeRate * 100).toString()}
+              value={(Math.round(settings.takeRate * 1000) / 10).toString()}
               onChange={(e) => {
                 const pct = Number(e.target.value)
                 if (Number.isFinite(pct) && pct >= 0 && pct <= 30) updateTakeRate(pct / 100)

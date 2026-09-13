@@ -98,8 +98,11 @@ export function TextsReveal({
 
 export function ShimmerText({ text, className }: { text: string; className?: string }) {
   return (
-    <span className={clsx('t-shimmer', className)} data-text={text}>
-      {text}
+    <span>
+      <span className="sr-only">{text}</span>
+      <span className={clsx('t-shimmer', className)} data-text={text} aria-hidden="true">
+        {text}
+      </span>
     </span>
   )
 }

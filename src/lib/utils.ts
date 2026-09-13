@@ -157,6 +157,26 @@ export function sellerStack(user?: User, outcome?: Outcome): User['stack'] {
   return outcome?.stack?.length ? outcome.stack : user?.stack
 }
 
+/** Increment completion against seeded historical stats (not a recount of in-browser orders). */
+export function recordOutcomeCompletion(
+  stats: Outcome['stats'],
+  hoursToOutcome: number,
+): Outcome['stats'] {
+  const total = Math.max(stats.totalOrders, 1)
+  const alreadyDone = Math.round(stats.completionRate * Math.max(total - 1, 0))
+  const completed = Math.min(total, alreadyDone + 1)
+  const prevAvg = stats.avgTimeToOutcomeHours
+  const avg =
+    prevAvg === 0
+      ? hoursToOutcome
+      : Math.round((prevAvg * Math.max(completed - 1, 0) + hoursToOutcome) / Math.max(completed, 1))
+  return {
+    ...stats,
+    completionRate: completed / total,
+    avgTimeToOutcomeHours: avg,
+  }
+}
+
 export function clsx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
 }
