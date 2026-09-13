@@ -2,6 +2,8 @@
 
 **Fiverr for outcome-priced AI work.**
 
+Live demo: **[https://sjwin92.github.io/OutcomeLauncher/](https://sjwin92.github.io/OutcomeLauncher/)**
+
 A production-style demo SPA: sellers list fixed-scope **outcomes** (not vague gigs) with success criteria, SLAs, and outcome-based pricing (base fee + optional performance bonus). AI agents do 60–80% of the work; humans QA. Proof of work is auto-generated.
 
 Two verticals:
@@ -11,23 +13,9 @@ Two verticals:
 
 All backend state is **mocked in memory**. Reload the page to reset.
 
-## Run
+## Demo logins
 
-```bash
-npm install
-npm run dev
-```
-
-Open the URL Vite prints (default `http://localhost:5173`).
-
-```bash
-npm test          # unit tests for templates, filters, economics
-npm run build     # production build
-```
-
-## Demo accounts
-
-Password for all seeded users: **`demo1234`**
+Password for every seeded account: **`demo1234`**
 
 | Email | Role | Notes |
 | --- | --- | --- |
@@ -35,7 +23,24 @@ Password for all seeded users: **`demo1234`**
 | `seller@demo.com` | Seller (verified) | Live Creator/Brand outcomes cloned from templates |
 | `admin@outcomelauncher.com` | Seller + admin | `/admin` is gated by `admin@` in the email |
 
-Sign in from `/signin`. After login you land on a role-aware `/dashboard`.
+Sign in from `/signin` (or the live site’s Sign in page). After login you land on a role-aware `/dashboard`.
+
+## Run
+
+```bash
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (default `http://localhost:5173`). Local Vite `base` stays `/`.
+
+```bash
+npm test                          # unit tests for templates, filters, economics
+npm run build                     # production build at `/`
+GITHUB_PAGES=true npm run build   # production build at `/OutcomeLauncher/` (GitHub Pages)
+```
+
+Pushes to `main` run `.github/workflows/deploy-pages.yml`: `npm ci`, `GITHUB_PAGES=true` build, copy `index.html` → `404.html` for SPA fallback, then upload and deploy to GitHub Pages. In the repo, set **Settings → Pages → Source** to **GitHub Actions** if the site is not live yet.
 
 ## What to click through
 

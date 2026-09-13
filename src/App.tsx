@@ -13,10 +13,12 @@ import { OutcomeForm } from './pages/OutcomeForm'
 import { OutcomePage } from './pages/OutcomePage'
 import { Dashboard } from './pages/SellerDashboard'
 
+const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+
 export default function App() {
   return (
     <StoreProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />

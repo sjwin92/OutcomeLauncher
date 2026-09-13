@@ -18,12 +18,14 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link to="/" className="flex items-center gap-2" onClick={close}>
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-emerald-50">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-4">
+        <Link to="/" className="flex min-w-0 items-center gap-2" onClick={close}>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-emerald-50">
             OL
           </span>
-          <span className="text-base font-bold tracking-tight text-slate-900">OutcomeLauncher</span>
+          <span className="truncate text-sm font-bold tracking-tight text-slate-900 sm:text-base">
+            OutcomeLauncher
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -76,7 +78,7 @@ export function Nav() {
         </div>
 
         <button
-          className="btn-secondary md:hidden"
+          className="btn-secondary shrink-0 px-3 py-2 md:hidden"
           aria-expanded={open}
           aria-label="Toggle menu"
           onClick={() => setOpen((v) => !v)}
