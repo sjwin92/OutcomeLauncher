@@ -2,7 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Alert, Button, Field, Select, TextArea, TextInput } from '../components/ui'
 import { useStore } from '../data/store'
-import { CATEGORIES, VERTICALS, type IntakeField, type IntakeFieldType, type OutcomeDraft, type OutcomeStatus, type Vertical } from '../data/types'
+import { CATEGORIES, VERTICALS, type IntakeField, type IntakeFieldType, type OutcomeDraft, type OutcomeKind, type OutcomeStatus, type Vertical } from '../data/types'
+import { useToast } from '../motion/ToastProvider'
 import { uid } from '../lib/utils'
 
 interface FormState {
@@ -10,6 +11,8 @@ interface FormState {
   description: string
   vertical: Vertical
   category: string
+  kind: OutcomeKind
+  monthlyMetric: string
   inputs: IntakeField[]
   deliverables: string
   notIncluded: string
@@ -26,8 +29,10 @@ interface FormState {
 const emptyForm = (): FormState => ({
   title: '',
   description: '',
-  vertical: 'Creator/Brand',
-  category: 'E-com',
+  vertical: 'SaaS Builder',
+  category: 'SaaS Onboarding',
+  kind: 'one_off',
+  monthlyMetric: '',
   inputs: [{ id: uid('fld'), label: '', type: 'text', required: true, placeholder: '' }],
   deliverables: '',
   notIncluded: '',
@@ -52,6 +57,7 @@ export function OutcomeForm() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { currentUser, outcomes, createOutcome, updateOutcome } = useStore()
+  const { pushToast } = useToast()
   const existing = id ? outcomes.find((o) => o.id === id && o.sellerId === currentUser?.id) : undefined
 
   const [form, setForm] = useState<FormState>(() => {
@@ -61,6 +67,8 @@ export function OutcomeForm() {
       description: existing.description,
       vertical: existing.vertical,
       category: existing.category,
+      kind: existing.kind ?? 'one_off',
+      monthlyMetric: existing.monthlyMetric ?? '',
       inputs: existing.inputs.map((f) => ({ ...f })),
       deliverables: existing.deliverables.join('\n'),
       notIncluded: existing.notIncluded.join('\n'),
@@ -89,6 +97,8 @@ export function OutcomeForm() {
       description: form.description.trim(),
       vertical: form.vertical,
       category: form.category,
+      kind: form.kind,
+      monthlyMetric: form.kind === 'retainer' ? form.monthlyMetric.trim() || undefined : undefined,
       inputs: form.inputs.filter((f) => f.label.trim()),
       deliverables: lines(form.deliverables),
       notIncluded: lines(form.notIncluded),
@@ -134,6 +144,7 @@ export function OutcomeForm() {
       setBanner(result.error ?? 'Could not save.')
       return
     }
+    pushToast(status === 'live' ? 'Outcome live' : 'Outcome saved')
     navigate('/dashboard')
   }
 
@@ -171,6 +182,15 @@ export function OutcomeForm() {
           <TextArea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Kind">
+            <Select
+              value={form.kind}
+              onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as OutcomeKind }))}
+            >
+              <option value="one_off">One-off outcome</option>
+              <option value="retainer">Monthly retainer</option>
+            </Select>
+          </Field>
           <Field label="Vertical">
             <Select
               value={form.vertical}
@@ -320,6 +340,15 @@ export function OutcomeForm() {
             placeholder="$25 / 100 recovered carts"
           />
         </Field>
+        {form.kind === 'retainer' ? (
+          <Field label="Monthly success metric" hint="What “done this month” means for the retainer.">
+            <TextArea
+              value={form.monthlyMetric}
+              onChange={(e) => setForm((f) => ({ ...f, monthlyMetric: e.target.value }))}
+              placeholder="Core activation funnel stays complete for the month."
+            />
+          </Field>
+        ) : null}
         <Field label="FAQs" hint="One per line: Question | Answer">
           <TextArea value={form.faqs} onChange={(e) => setForm((f) => ({ ...f, faqs: e.target.value }))} />
         </Field>

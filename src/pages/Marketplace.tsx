@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { OutcomeCard } from '../components/OutcomeCard'
 import { EmptyState, Field, Select, TextInput } from '../components/ui'
 import { useStore } from '../data/store'
-import { CATEGORIES, VERTICALS, type Vertical } from '../data/types'
+import { CATEGORIES, type OutcomeKind, type Vertical } from '../data/types'
 import { defaultMarketplaceFilters, filterMarketplace } from '../lib/utils'
+import { SearchClear, SlidingTabs } from '../motion/MotionBits'
 
 export function Marketplace() {
   const { outcomes, users } = useStore()
@@ -11,6 +12,12 @@ export function Marketplace() {
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
   const [maxDays, setMaxDays] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setLoading(false), 480)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const categories =
     filters.vertical === 'all'
@@ -33,35 +40,41 @@ export function Marketplace() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-3xl font-bold text-slate-900">Marketplace</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Live outcomes only. Every card is a fixed-scope result with an SLA — not a gig listing.
+        Defaults to SaaS Builder. Every card is a fixed-scope result or monthly retainer with an SLA — not a gig listing.
       </p>
 
-      <div className="card mt-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <SlidingTabs
+          ariaLabel="Vertical"
+          value={filters.vertical}
+          options={[
+            { id: 'SaaS Builder' as const, label: 'SaaS Builder' },
+            { id: 'Creator/Brand' as const, label: 'Creator / Brand' },
+            { id: 'all' as const, label: 'All' },
+          ]}
+          onChange={(vertical) =>
+            setFilters((f) => ({ ...f, vertical: vertical as Vertical | 'all', category: 'all' }))
+          }
+        />
+        <SlidingTabs
+          ariaLabel="Kind"
+          value={filters.kind}
+          options={[
+            { id: 'all' as const, label: 'All kinds' },
+            { id: 'one_off' as const, label: 'One-off' },
+            { id: 'retainer' as const, label: 'Retainers' },
+          ]}
+          onChange={(kind) => setFilters((f) => ({ ...f, kind: kind as OutcomeKind | 'all' }))}
+        />
+      </div>
+
+      <div className="card mt-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <Field label="Search">
-          <TextInput
+          <SearchClear
             value={filters.query}
-            onChange={(e) => setFilters((f) => ({ ...f, query: e.target.value }))}
-            placeholder="Cart recovery, onboarding…"
+            onChange={(query) => setFilters((f) => ({ ...f, query }))}
+            placeholder="Auth, churn, waitlist…"
           />
-        </Field>
-        <Field label="Vertical">
-          <Select
-            value={filters.vertical}
-            onChange={(e) =>
-              setFilters((f) => ({
-                ...f,
-                vertical: e.target.value as Vertical | 'all',
-                category: 'all',
-              }))
-            }
-          >
-            <option value="all">All verticals</option>
-            {VERTICALS.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </Select>
         </Field>
         <Field label="Category">
           <Select
@@ -77,51 +90,45 @@ export function Marketplace() {
           </Select>
         </Field>
         <Field label="Min price ($)">
-          <TextInput
-            type="number"
-            min={0}
-            value={minPrice}
-            onChange={(e) => setMinPrice(e.target.value)}
-            placeholder="0"
-          />
+          <TextInput type="number" min={0} value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="0" />
         </Field>
         <Field label="Max price ($)">
-          <TextInput
-            type="number"
-            min={0}
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-            placeholder="8000"
-          />
+          <TextInput type="number" min={0} value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="8000" />
         </Field>
         <Field label="Max turnaround (days)">
-          <TextInput
-            type="number"
-            min={1}
-            value={maxDays}
-            onChange={(e) => setMaxDays(e.target.value)}
-            placeholder="21"
-          />
+          <TextInput type="number" min={1} value={maxDays} onChange={(e) => setMaxDays(e.target.value)} placeholder="21" />
         </Field>
       </div>
 
-      <p className="mt-6 text-sm text-slate-500">{results.length} live outcome{results.length === 1 ? '' : 's'}</p>
+      <p className="mt-6 text-sm text-slate-500">
+        {results.length} live outcome{results.length === 1 ? '' : 's'}
+      </p>
 
-      {results.length === 0 ? (
-        <div className="mt-4">
-          <EmptyState title="No outcomes match" body="Relax a filter or clear the search to see live offers." />
-        </div>
-      ) : (
-        <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {results.map((outcome) => (
-            <OutcomeCard
-              key={outcome.id}
-              outcome={outcome}
-              seller={users.find((u) => u.id === outcome.sellerId)}
-            />
+      <div className={`t-skel t-skel-flow mt-4 ${loading ? '' : 'is-revealed'}`}>
+        <div className={`t-skel-skeleton grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${loading ? 'is-pulsing' : ''}`}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="card h-64 bg-slate-100" />
           ))}
         </div>
-      )}
+        <div className="t-skel-content">
+          {results.length === 0 ? (
+            <EmptyState
+              title="No outcomes match"
+              body="Relax a filter, switch vertical, or clear search. Creator/Brand listings are one tab away."
+            />
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {results.map((outcome) => (
+                <OutcomeCard
+                  key={outcome.id}
+                  outcome={outcome}
+                  seller={users.find((u) => u.id === outcome.sellerId)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

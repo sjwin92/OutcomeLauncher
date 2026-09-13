@@ -1,3 +1,6 @@
+@import './styles/transitions-root.css';
+@import './styles/transitions.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -57,3 +60,94 @@
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
 }
+
+/* Layout adapters — timings stay on transitions.dev tokens. */
+.t-stagger-line--3 { transition-delay: calc(var(--stagger-stagger) * 2); }
+.t-stagger-line--4 { transition-delay: calc(var(--stagger-stagger) * 3); }
+
+.hero-shimmer {
+  --shimmer-base: #a5b4fc;
+  --shimmer-highlight: #ffffff;
+}
+
+.t-toggle {
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+}
+.t-toggle[data-on='true'] { background: #059669; }
+.t-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #fff;
+  display: block;
+}
+
+.t-clear-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 1;
+  color: #475569;
+  background: #f1f5f9;
+}
+.t-clear-mirror,
+.t-clear-placeholder {
+  padding: 0 2.5rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.t-skel-flow .t-skel-skeleton,
+.t-skel-flow .t-skel-content {
+  position: relative;
+  inset: auto;
+}
+.t-skel-flow.is-revealed .t-skel-skeleton {
+  position: absolute;
+  pointer-events: none;
+}
+
+.t-input.is-error {
+  border-color: #e11d48;
+}
+
+.t-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  z-index: 30;
+}
+
+.t-panel-slide {
+  --panel-translate-y: 16px;
+}
+
+.t-reason-viewport {
+  height: 88px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+}
+.t-reason-text p {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.t-think {
+  --think-base: #64748b;
+  --think-highlight: #0f172a;
+}
+

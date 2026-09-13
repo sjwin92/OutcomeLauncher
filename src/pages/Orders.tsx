@@ -12,8 +12,8 @@ export function Orders() {
         title={seller ? 'Incoming outcome orders' : 'Your purchases'}
         description={
           seller
-            ? 'Run the agent workflow, review proof, then mark completed, request a manual fix, or flag a dispute.'
-            : 'Follow intake, logs, and proof. After completion you can leave a rating.'
+            ? 'Run the agent workflow, review proof, then mark completed to release escrow — or request a manual fix / flag a dispute.'
+            : 'Follow intake, logs, and proof. Accept proof to release escrow. After completion you can leave a rating.'
         }
       />
       <OrderTable buyerView={!seller} />

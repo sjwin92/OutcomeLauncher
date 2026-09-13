@@ -33,7 +33,7 @@ export function BuyerDashboard() {
       {mine.length === 0 ? (
         <EmptyState
           title="No orders yet"
-          body="Buy a live outcome from the marketplace. Demo buyer already has a few seeded orders."
+          body="Buy a live SaaS outcome from the marketplace. The demo buyer already has seeded orders, including escrowed and released payments."
           action={
             <Link to="/marketplace" className="btn-primary">
               Go to marketplace

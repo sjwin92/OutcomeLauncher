@@ -2,20 +2,17 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
-import { hoursFromNowIso, mockHash, nowIso, uid } from '../lib/utils'
-import {
-  ADMIN_ID,
-  DEFAULT_SETTINGS,
-  SEED_ORDERS,
-  SEED_OUTCOMES,
-  SEED_USERS,
-} from './seed'
+import { hoursFromNowIso, mockHash, nowIso, recordOutcomeCompletion, uid } from '../lib/utils'
+import { ADMIN_ID } from './seed'
+import { loadSnapshot, resetSnapshot, saveSnapshot } from './repository'
 import { TEMPLATES } from './templates'
 import type {
+  EscrowStatus,
   Order,
   OrderRating,
   Outcome,
@@ -56,7 +53,7 @@ export interface StoreApi {
   createOrder: (
     outcomeId: string,
     intakeData: Record<string, string>,
-    bonusPrice?: number,
+    options?: { bonusPrice?: number; measurementConnected?: boolean },
   ) => { ok: boolean; order?: Order; error?: string }
   runWorkflow: (orderId: string) => Promise<{ ok: boolean; error?: string }>
   markCompleted: (orderId: string) => { ok: boolean; error?: string }
@@ -66,26 +63,32 @@ export interface StoreApi {
   updateTakeRate: (rate: number) => void
   updateTier: (name: SubscriptionTierName, patch: Partial<SubscriptionTier>) => void
   toggleVerified: (userId: string) => void
+  acceptProof: (orderId: string) => { ok: boolean; error?: string }
+  connectMeasurement: (orderId: string, connected: boolean) => { ok: boolean; error?: string }
+  resetDemoData: () => void
 }
 
 const StoreContext = createContext<StoreApi | null>(null)
 
-function cloneState() {
-  return {
-    users: structuredClone(SEED_USERS),
-    outcomes: structuredClone(SEED_OUTCOMES),
-    orders: structuredClone(SEED_ORDERS),
-    settings: structuredClone(DEFAULT_SETTINGS),
-  }
-}
-
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState<User[]>(() => cloneState().users)
-  const [outcomes, setOutcomes] = useState<Outcome[]>(() => cloneState().outcomes)
-  const [orders, setOrders] = useState<Order[]>(() => cloneState().orders)
-  const [settings, setSettings] = useState<PlatformSettings>(() => cloneState().settings)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [snapshot] = useState(() => loadSnapshot())
+  const [users, setUsers] = useState<User[]>(() => snapshot.users)
+  const [outcomes, setOutcomes] = useState<Outcome[]>(() => snapshot.outcomes)
+  const [orders, setOrders] = useState<Order[]>(() => snapshot.orders)
+  const [settings, setSettings] = useState<PlatformSettings>(() => snapshot.settings)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => snapshot.sessionUserId)
   const [runningOrderIds, setRunningOrderIds] = useState<string[]>([])
+
+  useEffect(() => {
+    saveSnapshot({
+      version: 2,
+      users,
+      outcomes,
+      orders,
+      settings,
+      sessionUserId: currentUserId,
+    })
+  }, [users, outcomes, orders, settings, currentUserId])
 
   const currentUser = users.find((u) => u.id === currentUserId) ?? null
 
@@ -154,6 +157,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!limit.ok) return limit
       const outcome: Outcome = {
         ...draft,
+        kind: draft.kind ?? 'one_off',
         id: uid('out'),
         sellerId: currentUser.id,
         status,
@@ -229,6 +233,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         description: template.description,
         vertical: template.vertical,
         category: template.category,
+        kind: template.kind,
         inputs: template.inputs.map((f) => ({ ...f })),
         deliverables: [...template.deliverables],
         notIncluded: [...template.notIncluded],
@@ -238,10 +243,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         priceNote: template.priceNote,
         bonusDescription: template.bonusDescription,
         bonusFormula: template.bonusFormula,
+        monthlyMetric: template.monthlyMetric,
         capacity: template.capacity,
         status: 'draft',
         stats: { totalOrders: 0, completionRate: 0, avgTimeToOutcomeHours: 0 },
         faqs: template.faqs.map((f) => ({ ...f })),
+        stack: template.stack ? [...template.stack] : currentUser.stack,
       }
       setOutcomes((prev) => [outcome, ...prev])
       return { ok: true, outcome }
@@ -250,7 +257,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const createOrder = useCallback(
-    (outcomeId: string, intakeData: Record<string, string>, bonusPrice?: number) => {
+    (outcomeId: string, intakeData: Record<string, string>, options?: { bonusPrice?: number; measurementConnected?: boolean }) => {
       if (!currentUser) return { ok: false, error: 'Sign in to purchase an outcome.' }
       const outcome = outcomes.find((o) => o.id === outcomeId)
       if (!outcome || outcome.status !== 'live') {
@@ -271,11 +278,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         buyerId: currentUser.id,
         intakeData,
         basePrice: outcome.basePrice,
-        bonusPrice,
+        bonusPrice: options?.bonusPrice,
         status: 'paid',
         createdAt: nowIso(),
         deadlineAt: hoursFromNowIso(outcome.slaHours),
         workflowLogs: [],
+        escrowStatus: 'escrowed' satisfies EscrowStatus,
+        measurementConnected: Boolean(options?.measurementConnected),
       }
       setOrders((prev) => [order, ...prev])
       setOutcomes((prev) =>
@@ -335,29 +344,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const markCompleted = useCallback((orderId: string) => {
     const order = orders.find((o) => o.id === orderId)
     if (!order) return { ok: false, error: 'Order not found.' }
+    if (order.status === 'completed') return { ok: false, error: 'This order is already completed.' }
     if (!order.proofReport) return { ok: false, error: 'Run the agent workflow before marking completed.' }
     const started = new Date(order.createdAt).getTime()
     const hours = Math.max(1, Math.round((Date.now() - started) / 36e5))
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'completed' } : o)))
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'completed', escrowStatus: 'released' } : o)),
+    )
     setOutcomes((prev) =>
-      prev.map((o) => {
-        if (o.id !== order.outcomeId) return o
-        const completed = orders.filter((x) => x.outcomeId === o.id && (x.status === 'completed' || x.id === orderId)).length
-        const total = o.stats.totalOrders || 1
-        const prevAvg = o.stats.avgTimeToOutcomeHours
-        const avg =
-          o.stats.avgTimeToOutcomeHours === 0
-            ? hours
-            : Math.round((prevAvg * Math.max(completed - 1, 0) + hours) / Math.max(completed, 1))
-        return {
-          ...o,
-          stats: {
-            ...o.stats,
-            completionRate: Math.min(1, completed / total),
-            avgTimeToOutcomeHours: avg,
-          },
-        }
-      }),
+      prev.map((o) =>
+        o.id === order.outcomeId ? { ...o, stats: recordOutcomeCompletion(o.stats, hours) } : o,
+      ),
     )
     return { ok: true }
   }, [orders])
@@ -413,6 +410,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, verified: !u.verified } : u)))
   }, [])
 
+  const acceptProof = useCallback((orderId: string) => {
+    const order = orders.find((o) => o.id === orderId)
+    if (!order) return { ok: false, error: 'Order not found.' }
+    if (!order.proofReport) return { ok: false, error: 'Proof is not ready yet.' }
+    if (currentUser?.id !== order.buyerId) return { ok: false, error: 'Only the buyer can accept proof.' }
+    const completing = order.status === 'paid' || order.status === 'in_progress'
+    const started = new Date(order.createdAt).getTime()
+    const hours = Math.max(1, Math.round((Date.now() - started) / 36e5))
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, escrowStatus: 'released', status: completing ? 'completed' : o.status }
+          : o,
+      ),
+    )
+    if (completing) {
+      setOutcomes((prev) =>
+        prev.map((o) =>
+          o.id === order.outcomeId ? { ...o, stats: recordOutcomeCompletion(o.stats, hours) } : o,
+        ),
+      )
+    }
+    return { ok: true }
+  }, [currentUser, orders])
+
+  const connectMeasurement = useCallback((orderId: string, connected: boolean) => {
+    if (!orders.some((o) => o.id === orderId)) return { ok: false, error: 'Order not found.' }
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, measurementConnected: connected } : o)))
+    return { ok: true }
+  }, [orders])
+
+  const resetDemoData = useCallback(() => {
+    const next = resetSnapshot(currentUserId)
+    setUsers(next.users)
+    setOutcomes(next.outcomes)
+    setOrders(next.orders)
+    setSettings(next.settings)
+    setCurrentUserId(next.sessionUserId)
+    setRunningOrderIds([])
+  }, [currentUserId])
+
   const value = useMemo<StoreApi>(
     () => ({
       users,
@@ -439,6 +477,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateTakeRate,
       updateTier,
       toggleVerified,
+      acceptProof,
+      connectMeasurement,
+      resetDemoData,
     }),
     [
       users,
@@ -464,6 +505,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateTakeRate,
       updateTier,
       toggleVerified,
+      acceptProof,
+      connectMeasurement,
+      resetDemoData,
     ],
   )
 

@@ -1,12 +1,23 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { OrderStatusBadge } from '../components/StatusBadge'
+import { EscrowBadge, KindBadge, OrderStatusBadge } from '../components/StatusBadge'
 import { Alert, Button, Field, TextArea } from '../components/ui'
 import { useStore } from '../data/store'
 import { formatDate, formatMoney } from '../lib/utils'
+import { MatrixLoader, ReasonStream, StreamText, SuccessCheck, ThinkLine, ToggleSwitch } from '../motion/MotionBits'
+import { useToast } from '../motion/ToastProvider'
+
+const THINK_STATES = [
+  'Parsing intake…',
+  'Agents researching…',
+  'Drafting deliverables…',
+  'Human QA in review…',
+  'Compiling proof…',
+]
 
 export function OrderDetail() {
   const { id } = useParams()
+  const { pushToast } = useToast()
   const {
     currentUser,
     orders,
@@ -18,6 +29,8 @@ export function OrderDetail() {
     requestManualFix,
     flagDispute,
     rateOrder,
+    acceptProof,
+    connectMeasurement,
   } = useStore()
   const order = orders.find((o) => o.id === id)
   const outcome = order ? outcomes.find((o) => o.id === order.outcomeId) : undefined
@@ -62,17 +75,20 @@ export function OrderDetail() {
     setMessage('')
     const result = await runWorkflow(orderId)
     if (!result.ok) setMessage(result.error ?? 'Workflow failed.')
+    else pushToast('Proof compiled')
   }
 
-  function act(fn: (id: string) => { ok: boolean; error?: string }) {
+  function act(fn: (id: string) => { ok: boolean; error?: string }, okToast?: string) {
     const result = fn(orderId)
     setMessage(result.ok ? '' : result.error ?? 'Action failed.')
+    if (result.ok && okToast) pushToast(okToast)
   }
 
   function onRate(event: FormEvent) {
     event.preventDefault()
     const result = rateOrder(orderId, { stars, review })
     setMessage(result.ok ? 'Thanks — review saved.' : result.error ?? 'Could not save review.')
+    if (result.ok) pushToast('Review saved')
   }
 
   return (
@@ -83,11 +99,16 @@ export function OrderDetail() {
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <h1 className="text-3xl font-bold text-slate-900">{outcome.title}</h1>
         <OrderStatusBadge status={order.status} />
+        <KindBadge kind={outcome.kind} />
+        <EscrowBadge status={order.escrowStatus} />
       </div>
       <p className="mt-2 text-sm text-slate-600">
         Buyer {buyer?.name} · Seller {seller?.name} · {formatMoney(order.basePrice)}
         {order.bonusPrice ? ` + ${formatMoney(order.bonusPrice)} bonus` : ''} · Created {formatDate(order.createdAt)} ·
         Deadline {formatDate(order.deadlineAt)}
+      </p>
+      <p className="mt-2 text-sm text-slate-700">
+        Success criteria: {outcome.successCriteria}
       </p>
 
       {message ? (
@@ -95,6 +116,26 @@ export function OrderDetail() {
           <Alert tone={message.startsWith('Thanks') ? 'success' : 'info'}>{message}</Alert>
         </div>
       ) : null}
+
+      <div className="mt-6 card p-5">
+        <ToggleSwitch
+          checked={Boolean(order.measurementConnected)}
+          onChange={(next) => {
+            connectMeasurement(orderId, next)
+            pushToast(next ? 'Stripe / analytics connected (mock)' : 'Measurement disconnected')
+          }}
+          label="Connect Stripe / analytics to unlock measured bonus"
+        />
+        {order.measurementConnected ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Metric label="Checkout events (7d)" value="184" />
+            <Metric label="Activation rate" value="27%" />
+            <Metric label="Bonus if criteria hit" value={formatMoney(order.bonusPrice ?? 150)} />
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">Connect a mock feed to show measured-bonus math on this order.</p>
+        )}
+      </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <section className="card p-6 lg:col-span-1">
@@ -117,14 +158,36 @@ export function OrderDetail() {
             <h2 className="font-semibold text-slate-900">Agent workflow</h2>
             {isSeller && order.status !== 'completed' && order.status !== 'disputed' ? (
               <Button onClick={onRun} disabled={running}>
-                {running ? 'Running…' : 'Run agent workflow'}
+                {running ? (
+                  <span className="inline-flex items-center gap-2">
+                    <MatrixLoader variant="orbit" /> Running…
+                  </span>
+                ) : (
+                  'Run agent workflow'
+                )}
               </Button>
             ) : null}
           </div>
+          {running ? (
+            <div className="mt-4">
+              <ThinkLine states={THINK_STATES} running />
+            </div>
+          ) : null}
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-indigo-600 transition-all" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-indigo-600" style={{ width: `${progress}%` }} />
           </div>
           <p className="mt-2 text-xs text-slate-500">{progress}% · each step simulates 1–3 seconds of agent + QA work</p>
+          {running || order.workflowLogs.length > 0 ? (
+            <div className="mt-4">
+              <ReasonStream
+                lines={
+                  order.workflowLogs.length
+                    ? order.workflowLogs.map((l) => `${l.step}: ${l.message}`)
+                    : THINK_STATES
+                }
+              />
+            </div>
+          ) : null}
           <ol className="mt-4 space-y-3">
             {order.workflowLogs.map((log) => (
               <li key={log.id} className="rounded-xl border border-slate-100 px-3 py-2">
@@ -132,7 +195,11 @@ export function OrderDetail() {
                   <p className="text-sm font-semibold text-slate-900">{log.step}</p>
                   <span className="text-xs capitalize text-slate-500">{log.status}</span>
                 </div>
-                <p className="mt-1 text-sm text-slate-600">{log.message}</p>
+                {log.status === 'running' ? (
+                  <StreamText text={log.message} active />
+                ) : (
+                  <p className="mt-1 text-sm text-slate-600">{log.message}</p>
+                )}
                 <p className="mt-1 text-xs text-slate-400">{formatDate(log.timestamp)}</p>
               </li>
             ))}
@@ -147,7 +214,10 @@ export function OrderDetail() {
 
       {order.proofReport ? (
         <section className="card mt-6 p-6">
-          <h2 className="font-semibold text-slate-900">Proof of work</h2>
+          <div className="flex items-center gap-3">
+            <SuccessCheck done />
+            <h2 className="font-semibold text-slate-900">Proof of work</h2>
+          </div>
           <p className="mt-2 text-sm leading-6 text-slate-700">{order.proofReport.summary}</p>
           <h3 className="mt-5 text-sm font-semibold text-slate-900">What was done</h3>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
@@ -181,14 +251,26 @@ export function OrderDetail() {
 
       {isSeller ? (
         <div className="mt-6 flex flex-wrap gap-2">
-          <Button variant="emerald" onClick={() => act(markCompleted)} disabled={!order.proofReport || order.status === 'completed'}>
-            Mark completed
+          <Button
+            variant="emerald"
+            onClick={() => act(markCompleted, 'Escrow released')}
+            disabled={!order.proofReport || order.status === 'completed'}
+          >
+            Mark completed · release escrow
           </Button>
           <Button variant="secondary" onClick={() => act(requestManualFix)} disabled={order.status === 'completed'}>
             Request manual fix
           </Button>
           <Button variant="danger" onClick={() => act(flagDispute)} disabled={order.status === 'disputed'}>
             Flag dispute
+          </Button>
+        </div>
+      ) : null}
+
+      {isBuyer && order.proofReport && order.escrowStatus === 'escrowed' ? (
+        <div className="mt-6">
+          <Button variant="emerald" onClick={() => act(acceptProof, 'Proof accepted · escrow released')}>
+            Accept proof & release escrow
           </Button>
         </div>
       ) : null}
@@ -219,6 +301,15 @@ export function OrderDetail() {
           <p className="mt-2 text-sm text-slate-600">{order.rating.review}</p>
         </section>
       ) : null}
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-emerald-50 px-3 py-2">
+      <p className="text-xs text-emerald-800">{label}</p>
+      <p className="text-lg font-semibold text-emerald-950">{value}</p>
     </div>
   )
 }

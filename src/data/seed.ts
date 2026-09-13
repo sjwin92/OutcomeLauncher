@@ -49,6 +49,7 @@ export const SEED_USERS: User[] = [
     vertical: 'Creator/Brand',
     subscriptionTier: 'Starter',
     verified: false,
+    stack: ['Shopify', 'Klaviyo'],
   },
   {
     id: SELLER_ID,
@@ -60,6 +61,7 @@ export const SEED_USERS: User[] = [
     vertical: 'Creator/Brand',
     subscriptionTier: 'Pro',
     verified: true,
+    stack: ['Shopify', 'Klaviyo', 'Stripe'],
   },
   {
     id: ADMIN_ID,
@@ -71,6 +73,7 @@ export const SEED_USERS: User[] = [
     vertical: 'SaaS Builder',
     subscriptionTier: 'Agency',
     verified: true,
+    stack: ['Stripe', 'Next.js', 'Postgres', 'Auth.js'],
   },
   {
     id: SELLER_B_ID,
@@ -82,6 +85,7 @@ export const SEED_USERS: User[] = [
     vertical: 'SaaS Builder',
     subscriptionTier: 'Agency',
     verified: true,
+    stack: ['Stripe', 'Supabase', 'Next.js', 'Cloudflare', 'Vercel'],
   },
 ]
 
@@ -102,6 +106,7 @@ function cloneTemplateToOutcome(
     description: template.description,
     vertical: template.vertical,
     category: template.category,
+    kind: template.kind,
     inputs: template.inputs.map((field) => ({ ...field })),
     deliverables: [...template.deliverables],
     notIncluded: [...template.notIncluded],
@@ -111,10 +116,12 @@ function cloneTemplateToOutcome(
     priceNote: template.priceNote,
     bonusDescription: template.bonusDescription,
     bonusFormula: template.bonusFormula,
+    monthlyMetric: template.monthlyMetric,
     capacity: template.capacity,
     status,
     stats,
     faqs: template.faqs.map((faq) => ({ ...faq })),
+    stack: template.stack ? [...template.stack] : undefined,
   }
 }
 
@@ -165,6 +172,46 @@ export const SEED_OUTCOMES: Outcome[] = [
     completionRate: 0,
     avgTimeToOutcomeHours: 0,
   }),
+  cloneTemplateToOutcome('tpl_auth_sso', 'out_auth', SELLER_B_ID, 'live', {
+    totalOrders: 4,
+    completionRate: 1,
+    avgTimeToOutcomeHours: 132,
+  }),
+  cloneTemplateToOutcome('tpl_waitlist_paid', 'out_waitlist', SELLER_B_ID, 'live', {
+    totalOrders: 3,
+    completionRate: 0.67,
+    avgTimeToOutcomeHours: 190,
+  }),
+  cloneTemplateToOutcome('tpl_churn_save', 'out_churn', ADMIN_ID, 'live', {
+    totalOrders: 2,
+    completionRate: 1,
+    avgTimeToOutcomeHours: 160,
+  }),
+  cloneTemplateToOutcome('tpl_data_migration', 'out_migrate', SELLER_B_ID, 'live', {
+    totalOrders: 2,
+    completionRate: 1,
+    avgTimeToOutcomeHours: 300,
+  }),
+  cloneTemplateToOutcome('tpl_compliance_lite', 'out_compliance', ADMIN_ID, 'live', {
+    totalOrders: 5,
+    completionRate: 0.8,
+    avgTimeToOutcomeHours: 110,
+  }),
+  cloneTemplateToOutcome('tpl_retainer_instrumentation', 'out_ret_instr', SELLER_B_ID, 'live', {
+    totalOrders: 7,
+    completionRate: 0.86,
+    avgTimeToOutcomeHours: 680,
+  }),
+  cloneTemplateToOutcome('tpl_retainer_docs', 'out_ret_docs', ADMIN_ID, 'live', {
+    totalOrders: 4,
+    completionRate: 1,
+    avgTimeToOutcomeHours: 700,
+  }),
+  cloneTemplateToOutcome('tpl_retainer_triage', 'out_ret_triage', SELLER_B_ID, 'live', {
+    totalOrders: 3,
+    completionRate: 1,
+    avgTimeToOutcomeHours: 690,
+  }),
 ]
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86400000).toISOString()
@@ -184,6 +231,8 @@ export const SEED_ORDERS: Order[] = [
     createdAt: daysAgo(0.3),
     deadlineAt: hoursFromNowIso(110),
     workflowLogs: [],
+    escrowStatus: 'escrowed',
+    measurementConnected: false,
   },
   {
     id: 'ord_progress_seo',
@@ -198,6 +247,8 @@ export const SEED_ORDERS: Order[] = [
     status: 'in_progress',
     createdAt: daysAgo(1),
     deadlineAt: hoursFromNowIso(90),
+    escrowStatus: 'escrowed',
+    measurementConnected: true,
     workflowLogs: [
       {
         id: 'log_seo_1',
@@ -236,6 +287,8 @@ export const SEED_ORDERS: Order[] = [
     status: 'completed',
     createdAt: daysAgo(18),
     deadlineAt: daysAgo(11),
+    escrowStatus: 'released',
+    measurementConnected: true,
     workflowLogs: [
       {
         id: 'log_call_1',
@@ -324,6 +377,8 @@ export const SEED_ORDERS: Order[] = [
     status: 'disputed',
     createdAt: daysAgo(40),
     deadlineAt: daysAgo(19),
+    escrowStatus: 'escrowed',
+    measurementConnected: false,
     workflowLogs: [
       {
         id: 'log_on_1',

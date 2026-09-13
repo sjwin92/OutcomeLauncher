@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { isAdminEmail } from '../lib/utils'
@@ -7,6 +7,8 @@ export function Nav() {
   const { currentUser, signOut } = useStore()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuClosing, setMenuClosing] = useState(false)
   const admin = currentUser && isAdminEmail(currentUser.email)
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -15,6 +17,23 @@ export function Nav() {
     }`
 
   const close = () => setOpen(false)
+
+  function closeMenu() {
+    setMenuOpen(false)
+    setMenuClosing(true)
+    const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dropdown-close-dur')) || 150
+    window.setTimeout(() => setMenuClosing(false), ms)
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDoc = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (!(event.target as HTMLElement).closest('[data-user-menu]')) closeMenu()
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [menuOpen])
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -51,26 +70,44 @@ export function Nav() {
 
         <div className="hidden items-center gap-2 md:flex">
           {currentUser ? (
-            <>
-              <span className="max-w-[180px] truncate text-xs text-slate-500">
-                {currentUser.name} · {currentUser.role}
-              </span>
+            <div className="relative" data-user-menu>
               <button
                 className="btn-secondary"
-                onClick={() => {
-                  signOut()
-                  navigate('/')
-                }}
+                aria-expanded={menuOpen}
+                onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
               >
-                Sign out
+                {currentUser.name}
               </button>
-            </>
+              {(menuOpen || menuClosing) && (
+                <div
+                  className={`t-dropdown card p-2 ${menuOpen ? 'is-open' : ''} ${menuClosing ? 'is-closing' : ''}`}
+                  data-origin="top-right"
+                >
+                  <p className="px-3 py-2 text-xs text-slate-500">
+                    {currentUser.email} · {currentUser.role}
+                  </p>
+                  <Link to="/dashboard" className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50" onClick={closeMenu}>
+                    Dashboard
+                  </Link>
+                  <button
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    onClick={() => {
+                      signOut()
+                      closeMenu()
+                      navigate('/')
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <>
               <Link to="/signin" className="btn-ghost">
                 Sign in
               </Link>
-              <Link to="/signup" className="btn-primary">
+              <Link to="/signup?role=seller" className="btn-primary">
                 Start selling
               </Link>
             </>
@@ -87,8 +124,8 @@ export function Nav() {
         </button>
       </div>
 
-      {open ? (
-        <div className="border-t border-slate-100 px-4 py-3 md:hidden">
+      <div className="overflow-hidden md:hidden">
+        <div className="t-panel-slide border-t border-slate-100 px-4 py-3" data-open={open ? 'true' : 'false'}>
           <nav className="flex flex-col gap-1">
             <NavLink to="/marketplace" className={linkClass} onClick={close}>
               Marketplace
@@ -131,7 +168,7 @@ export function Nav() {
             )}
           </nav>
         </div>
-      ) : null}
+      </div>
     </header>
   )
 }

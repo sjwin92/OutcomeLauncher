@@ -3,36 +3,64 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { Alert, Button, Field, Select, TextInput } from '../components/ui'
 import { useStore } from '../data/store'
 import type { Role } from '../data/types'
+import { useToast } from '../motion/ToastProvider'
 
 export function SignIn() {
   const { signIn } = useStore()
+  const { pushToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
   const [email, setEmail] = useState('buyer@demo.com')
   const [password, setPassword] = useState('demo1234')
   const [error, setError] = useState('')
+  const [shake, setShake] = useState(false)
+
+  function fail(message: string) {
+    setError(message)
+    setShake(false)
+    requestAnimationFrame(() => {
+      void document.body.offsetWidth
+      setShake(true)
+    })
+  }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     const result = signIn(email, password)
     if (!result.ok) {
-      setError(result.error ?? 'Could not sign in.')
+      fail(result.error ?? 'Could not sign in.')
       return
     }
+    pushToast('Signed in')
     navigate(from, { replace: true })
   }
 
   return (
-    <AuthShell title="Sign in" subtitle="Use a demo account or the one you created this session.">
+    <AuthShell title="Sign in" subtitle="Demo accounts persist in this browser. Password: demo1234.">
       <form className="space-y-4" onSubmit={onSubmit}>
         {error ? <Alert tone="error">{error}</Alert> : null}
-        <Field label="Email">
-          <TextInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label="Password">
-          <TextInput type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        </Field>
+        <div className={`t-input-wrap ${error ? 'is-error' : ''}`}>
+          <Field label="Email">
+            <TextInput
+              className={`t-input ${error ? 'is-error' : ''} ${shake ? 'is-shaking' : ''}`}
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="Password">
+            <TextInput
+              className={`t-input ${error ? 'is-error' : ''} ${shake ? 'is-shaking' : ''}`}
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+          <p className="t-error-msg mt-1 text-xs text-rose-600">{error || ' '}</p>
+        </div>
         <Button type="submit" className="w-full">
           Sign in
         </Button>
@@ -47,6 +75,7 @@ export function SignIn() {
 
 export function SignUp() {
   const { signUp } = useStore()
+  const { pushToast } = useToast()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const [role, setRole] = useState<Role>(params.get('role') === 'seller' ? 'seller' : 'buyer')
@@ -55,22 +84,33 @@ export function SignUp() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [shake, setShake] = useState(false)
+
+  function fail(message: string) {
+    setError(message)
+    setShake(false)
+    requestAnimationFrame(() => {
+      void document.body.offsetWidth
+      setShake(true)
+    })
+  }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
     if (!name.trim()) {
-      setError('Name is required.')
+      fail('Name is required.')
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+      fail('Password must be at least 8 characters.')
       return
     }
     const result = signUp({ email, password, name, company, role })
     if (!result.ok) {
-      setError(result.error ?? 'Could not create account.')
+      fail(result.error ?? 'Could not create account.')
       return
     }
+    pushToast('Account created')
     navigate('/dashboard', { replace: true })
   }
 
@@ -84,18 +124,21 @@ export function SignUp() {
             <option value="seller">Sell outcomes</option>
           </Select>
         </Field>
-        <Field label="Name">
-          <TextInput required value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Company">
-          <TextInput value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Optional" />
-        </Field>
-        <Field label="Email">
-          <TextInput type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label="Password" hint="At least 8 characters.">
-          <TextInput type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-        </Field>
+        <div className={`t-input-wrap ${error ? 'is-error' : ''}`}>
+          <Field label="Name">
+            <TextInput className={`t-input ${shake ? 'is-shaking' : ''} ${error ? 'is-error' : ''}`} required value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Company">
+            <TextInput value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Optional" />
+          </Field>
+          <Field label="Email">
+            <TextInput className={`t-input ${error ? 'is-error' : ''}`} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Password" hint="At least 8 characters.">
+            <TextInput className={`t-input ${error ? 'is-error' : ''}`} type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          <p className="t-error-msg mt-1 text-xs text-rose-600">{error || ' '}</p>
+        </div>
         <Button type="submit" className="w-full">
           Create account
         </Button>

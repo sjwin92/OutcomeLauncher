@@ -1,20 +1,50 @@
 import { Alert, Button, Field, PageHeader, TextInput } from '../components/ui'
 import { VerifiedBadge } from '../components/StatusBadge'
 import { useStore } from '../data/store'
+import { STORAGE_KEY } from '../data/repository'
 import type { SubscriptionTierName } from '../data/types'
 import { computeSellerMetrics, formatMoney, platformTake } from '../lib/utils'
+import { NumberPop, SpinningStat } from '../motion/MotionBits'
+import { useToast } from '../motion/ToastProvider'
 
 export function Admin() {
-  const { users, outcomes, orders, settings, updateTakeRate, updateTier, toggleVerified } = useStore()
+  const { users, outcomes, orders, settings, updateTakeRate, updateTier, toggleVerified, resetDemoData } = useStore()
+  const { pushToast } = useToast()
   const sellers = users.filter((u) => u.role === 'seller')
+  const gmv = orders.reduce((sum, o) => sum + o.basePrice + (o.bonusPrice ?? 0), 0)
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <PageHeader
         eyebrow="Admin"
         title="Platform settings"
-        description="Adjust subscription tiers and take rate for this browser session. Emails containing admin@ can open this page."
+        description="Adjust subscription tiers and take rate. Changes persist in localStorage (versioned). Emails containing admin@ can open this page."
+        actions={
+          <Button
+            variant="danger"
+            onClick={() => {
+              resetDemoData()
+              pushToast('Demo data reset')
+            }}
+          >
+            Reset demo data
+          </Button>
+        }
       />
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <SpinningStat label="GMV" value={formatMoney(gmv)} />
+        <div className="card p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Orders</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">
+            <NumberPop value={String(orders.length)} />
+          </p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Take on GMV</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900">{formatMoney(platformTake(gmv, settings.takeRate))}</p>
+        </div>
+      </div>
 
       <section className="card p-6">
         <h2 className="text-lg font-semibold text-slate-900">Take rate</h2>
@@ -29,7 +59,7 @@ export function Admin() {
               min={0}
               max={30}
               step="0.1"
-              value={(settings.takeRate * 100).toString()}
+              value={(Math.round(settings.takeRate * 1000) / 10).toString()}
               onChange={(e) => {
                 const pct = Number(e.target.value)
                 if (Number.isFinite(pct) && pct >= 0 && pct <= 30) updateTakeRate(pct / 100)
@@ -137,7 +167,10 @@ export function Admin() {
       </section>
 
       <div className="mt-6">
-        <Alert tone="info">Changes stay in memory until you reload the page.</Alert>
+        <Alert tone="info">
+          Users, outcomes, orders, settings, and session persist under <code>{STORAGE_KEY}</code>. Reset demo data
+          reseeds the original catalog. Next backend step: swap <code>src/data/repository.ts</code> for Supabase.
+        </Alert>
       </div>
     </div>
   )
