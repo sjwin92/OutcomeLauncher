@@ -1,8 +1,9 @@
 import { Link, useParams } from 'react-router-dom'
-import { OrderStatusBadge } from '../components/StatusBadge'
+import { EscrowBadge, OrderStatusBadge } from '../components/StatusBadge'
 import { Alert } from '../components/ui'
 import { useStore } from '../data/store'
 import { formatDate, formatMoney, formatSla } from '../lib/utils'
+import { SuccessCheck } from '../motion/MotionBits'
 
 const STEPS = ['paid', 'in_progress', 'completed'] as const
 
@@ -15,18 +16,24 @@ export function Confirmation() {
   if (!order || !outcome) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
-        <Alert tone="error">Order not found in this session.</Alert>
+        <Alert tone="error">Order not found.</Alert>
       </div>
     )
   }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
-      <Alert tone="success">Payment recorded. Your outcome is queued against the SLA.</Alert>
+      <div className="flex items-center gap-3">
+        <SuccessCheck done />
+        <Alert tone="success">Payment escrowed. Released when success criteria are met and proof is accepted.</Alert>
+      </div>
       <h1 className="mt-6 text-3xl font-bold text-slate-900">Order confirmed</h1>
       <p className="mt-2 text-slate-600">
         {outcome.title} · {formatMoney(order.basePrice)} · SLA {formatSla(outcome.slaHours)}
       </p>
+      <div className="mt-3">
+        <EscrowBadge status={order.escrowStatus} />
+      </div>
       <div className="card mt-6 p-6">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-slate-700">Status tracker</p>
@@ -44,6 +51,7 @@ export function Confirmation() {
           })}
         </ol>
         <p className="mt-4 text-sm text-slate-600">Deadline {formatDate(order.deadlineAt)}</p>
+        <p className="mt-2 text-sm text-slate-600">Success criteria: {outcome.successCriteria}</p>
         <div className="mt-6 flex flex-wrap gap-2">
           <Link to={`/orders/${order.id}`} className="btn-primary">
             Open order

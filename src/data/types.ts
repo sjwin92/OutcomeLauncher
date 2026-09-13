@@ -1,14 +1,31 @@
 /**
- * OutcomeLauncher in-memory domain model.
- * All state lives in the browser and resets on reload — no backend.
+ * OutcomeLauncher domain model.
+ * Persistence is a repository (localStorage today; swap for Supabase later).
  */
 
 export type Role = 'seller' | 'buyer'
 export type Vertical = 'Creator/Brand' | 'SaaS Builder'
 export type OutcomeStatus = 'draft' | 'live' | 'paused'
 export type OrderStatus = 'paid' | 'in_progress' | 'completed' | 'disputed'
+export type OutcomeKind = 'one_off' | 'retainer'
+export type EscrowStatus = 'escrowed' | 'released'
 export type SubscriptionTierName = 'Starter' | 'Pro' | 'Agency'
 export type IntakeFieldType = 'text' | 'textarea' | 'url' | 'email' | 'number'
+
+export const STACK_BADGES = [
+  'Stripe',
+  'Supabase',
+  'Next.js',
+  'Cloudflare',
+  'Vercel',
+  'Postgres',
+  'Auth.js',
+  'Resend',
+  'Shopify',
+  'Klaviyo',
+] as const
+
+export type StackBadge = (typeof STACK_BADGES)[number]
 
 /** Categories are scoped to a vertical. */
 export const CATEGORIES: Record<Vertical, string[]> = {
@@ -19,6 +36,11 @@ export const CATEGORIES: Record<Vertical, string[]> = {
     'SaaS Analytics',
     'SaaS Billing',
     'SaaS Docs',
+    'SaaS Auth',
+    'SaaS Growth',
+    'SaaS Data',
+    'SaaS Compliance',
+    'SaaS Retainers',
   ],
 }
 
@@ -48,6 +70,8 @@ export interface User {
   vertical?: Vertical
   subscriptionTier: SubscriptionTierName
   verified: boolean
+  /** Seller stack badges (Stripe, Supabase, Next.js, …). */
+  stack?: StackBadge[]
 }
 
 export interface OutcomeStats {
@@ -64,6 +88,7 @@ export interface Outcome {
   description: string
   vertical: Vertical
   category: string
+  kind: OutcomeKind
   inputs: IntakeField[]
   deliverables: string[]
   notIncluded: string[]
@@ -74,10 +99,13 @@ export interface Outcome {
   priceNote?: string
   bonusDescription?: string
   bonusFormula?: string
+  /** Retainer: monthly success metric the base fee is scoped to. */
+  monthlyMetric?: string
   capacity: number
   status: OutcomeStatus
   stats: OutcomeStats
   faqs: Faq[]
+  stack?: StackBadge[]
 }
 
 export interface WorkflowLog {
@@ -114,6 +142,9 @@ export interface Order {
   workflowLogs: WorkflowLog[]
   proofReport?: ProofReport
   rating?: OrderRating
+  escrowStatus: EscrowStatus
+  /** Mock Stripe / analytics connection that unlocks measured-bonus UI. */
+  measurementConnected?: boolean
 }
 
 export interface OutcomeTemplate {
@@ -122,6 +153,7 @@ export interface OutcomeTemplate {
   description: string
   vertical: Vertical
   category: string
+  kind: OutcomeKind
   inputs: IntakeField[]
   deliverables: string[]
   notIncluded: string[]
@@ -131,8 +163,10 @@ export interface OutcomeTemplate {
   priceNote?: string
   bonusDescription?: string
   bonusFormula?: string
+  monthlyMetric?: string
   capacity: number
   faqs: Faq[]
+  stack?: StackBadge[]
 }
 
 export interface SubscriptionTier {
@@ -152,6 +186,7 @@ export interface MarketplaceFilters {
   query: string
   vertical: Vertical | 'all'
   category: string
+  kind: OutcomeKind | 'all'
   minPrice: number | null
   maxPrice: number | null
   maxSlaHours: number | null
@@ -159,4 +194,13 @@ export interface MarketplaceFilters {
 
 export type OutcomeDraft = Omit<Outcome, 'id' | 'sellerId' | 'stats' | 'status'> & {
   status?: OutcomeStatus
+}
+
+export interface PersistedSnapshot {
+  version: number
+  users: User[]
+  outcomes: Outcome[]
+  orders: Order[]
+  settings: PlatformSettings
+  sessionUserId: string | null
 }

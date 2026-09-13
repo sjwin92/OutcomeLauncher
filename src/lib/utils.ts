@@ -62,6 +62,7 @@ export function filterMarketplace(
   return outcomes.filter((outcome) => {
     if (outcome.status !== 'live') return false
     if (filters.vertical !== 'all' && outcome.vertical !== filters.vertical) return false
+    if (filters.kind !== 'all' && outcome.kind !== filters.kind) return false
     if (filters.category !== 'all' && outcome.category !== filters.category) return false
     if (filters.minPrice != null && outcome.basePrice < filters.minPrice) return false
     if (filters.maxPrice != null && outcome.basePrice > filters.maxPrice) return false
@@ -136,12 +137,24 @@ export function platformTake(amount: number, takeRate: number): number {
 export function defaultMarketplaceFilters(): MarketplaceFilters {
   return {
     query: '',
-    vertical: 'all',
+    vertical: 'SaaS Builder',
     category: 'all',
+    kind: 'all',
     minPrice: null,
     maxPrice: null,
     maxSlaHours: null,
   }
+}
+
+export function featuredOutcomes(outcomes: Outcome[]): Outcome[] {
+  const live = outcomes.filter((o) => o.status === 'live')
+  const saas = live.filter((o) => o.vertical === 'SaaS Builder')
+  const other = live.filter((o) => o.vertical !== 'SaaS Builder')
+  return [...saas, ...other]
+}
+
+export function sellerStack(user?: User, outcome?: Outcome): User['stack'] {
+  return outcome?.stack?.length ? outcome.stack : user?.stack
 }
 
 export function clsx(...parts: Array<string | false | null | undefined>): string {

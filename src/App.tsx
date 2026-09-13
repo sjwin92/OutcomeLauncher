@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { StoreProvider } from './data/store'
+import { ToastProvider } from './motion/ToastProvider'
 import { Admin } from './pages/Admin'
 import { SignIn, SignUp } from './pages/Auth'
 import { Confirmation } from './pages/Confirmation'
@@ -18,6 +19,7 @@ const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
 export default function App() {
   return (
     <StoreProvider>
+      <ToastProvider>
       <BrowserRouter basename={basename}>
         <Routes>
           <Route element={<Layout />}>
@@ -86,6 +88,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </StoreProvider>
   )
 }

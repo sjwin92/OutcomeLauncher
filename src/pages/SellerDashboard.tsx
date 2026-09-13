@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { OutcomeStatusBadge } from '../components/StatusBadge'
+import { KindBadge, OutcomeStatusBadge } from '../components/StatusBadge'
+import { useToast } from '../motion/ToastProvider'
 import { Alert, Button, EmptyState, PageHeader } from '../components/ui'
 import { useStore } from '../data/store'
 import type { OutcomeTemplate } from '../data/types'
@@ -17,15 +18,19 @@ function SellerDashboard() {
   const navigate = useNavigate()
   const { currentUser, outcomes, templates, orders, duplicateOutcome, toggleOutcomeStatus, cloneTemplate } =
     useStore()
+  const { pushToast } = useToast()
   const [notice, setNotice] = useState('')
+  const [kindTab, setKindTab] = useState<'all' | 'one_off' | 'retainer'>('all')
   const mine = outcomes.filter((o) => o.sellerId === currentUser?.id)
   const incoming = orders.filter((order) => mine.some((o) => o.id === order.outcomeId))
 
   const grouped = useMemo(() => {
     const creator = templates.filter((t) => t.vertical === 'Creator/Brand')
-    const saas = templates.filter((t) => t.vertical === 'SaaS Builder')
-    return { creator, saas }
+    const saasOneOff = templates.filter((t) => t.vertical === 'SaaS Builder' && t.kind === 'one_off')
+    const retainers = templates.filter((t) => t.kind === 'retainer')
+    return { creator, saasOneOff, retainers }
   }, [templates])
+  const visibleMine = mine.filter((o) => kindTab === 'all' || o.kind === kindTab)
 
   function onToggle(id: string) {
     const result = toggleOutcomeStatus(id)
@@ -44,6 +49,7 @@ function SellerDashboard() {
       return
     }
     setNotice('Cloned as a draft. Review and go live when ready — these are standardized outcome offers.')
+    pushToast('Template cloned as draft')
     navigate(`/dashboard/outcomes/${result.outcome.id}/edit`)
   }
 
@@ -52,7 +58,7 @@ function SellerDashboard() {
       <PageHeader
         eyebrow="Seller dashboard"
         title={`Welcome, ${currentUser?.name ?? 'seller'}`}
-        description="Create fixed-scope outcomes, clone standardized templates, and track SLA-bound orders."
+        description="Create one-off outcomes or monthly retainers. Clone standardized SaaS templates, then go live."
         actions={
           <>
             <Link to="/dashboard/outcomes/new" className="btn-primary">
@@ -72,8 +78,21 @@ function SellerDashboard() {
       ) : null}
 
       <section>
-        <h2 className="text-lg font-semibold text-slate-900">Your outcomes</h2>
-        {mine.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-slate-900">Your outcomes</h2>
+          <div className="flex gap-2">
+            {(['all', 'one_off', 'retainer'] as const).map((tab) => (
+              <button
+                key={tab}
+                className={tab === kindTab ? 'btn-primary px-3 py-1 text-xs' : 'btn-secondary px-3 py-1 text-xs'}
+                onClick={() => setKindTab(tab)}
+              >
+                {tab === 'all' ? 'All' : tab === 'retainer' ? 'Retainers' : 'One-off'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {visibleMine.length === 0 ? (
           <div className="mt-4">
             <EmptyState
               title="No outcomes yet"
@@ -98,7 +117,7 @@ function SellerDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {mine.map((outcome) => (
+                {visibleMine.map((outcome) => (
                   <tr key={outcome.id} className="border-t border-slate-100">
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900">{outcome.title}</p>
@@ -106,6 +125,9 @@ function SellerDashboard() {
                         {outcome.vertical} · {outcome.category}
                         {outcome.templateId ? ' · from template' : ''}
                       </p>
+                      <div className="mt-1">
+                        <KindBadge kind={outcome.kind} />
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <OutcomeStatusBadge status={outcome.status} />
@@ -146,8 +168,9 @@ function SellerDashboard() {
         <p className="mt-1 text-sm text-slate-600">
           These are the platform’s preloaded templates — not custom gigs. Cloning creates a draft you can edit and publish.
         </p>
+        <TemplateGrid title="SaaS retainers (monthly scoped)" templates={grouped.retainers} onClone={onClone} />
+        <TemplateGrid title="SaaS Builder one-off" templates={grouped.saasOneOff} onClone={onClone} />
         <TemplateGrid title="Creator / Brand" templates={grouped.creator} onClone={onClone} />
-        <TemplateGrid title="SaaS Builder" templates={grouped.saas} onClone={onClone} />
       </section>
     </div>
   )
@@ -168,7 +191,10 @@ function TemplateGrid({
       <div className="mt-3 grid gap-4 md:grid-cols-2">
         {templates.map((template) => (
           <article key={template.id} className="card p-5">
-            <p className="badge bg-slate-100 text-slate-700">{template.category}</p>
+            <div className="flex flex-wrap gap-2">
+              <p className="badge bg-slate-100 text-slate-700">{template.category}</p>
+              <KindBadge kind={template.kind} />
+            </div>
             <h4 className="mt-2 font-semibold text-slate-900">{template.title}</h4>
             <p className="mt-2 line-clamp-3 text-sm text-slate-600">{template.description}</p>
             <p className="mt-3 text-sm font-medium text-slate-800">

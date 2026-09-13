@@ -2,29 +2,51 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { OutcomeCard } from '../components/OutcomeCard'
 import { useStore } from '../data/store'
+import { featuredOutcomes, formatMoney } from '../lib/utils'
+import { Accordion, NumberPop, ShimmerText, TextsReveal } from '../motion/MotionBits'
 
 const STEPS = [
   {
     n: '01',
     title: 'List or buy a fixed-scope outcome',
-    body: 'Sellers publish a result with inputs, deliverables, success criteria, and an SLA — not a vague gig. Buyers pick the outcome and fill a structured intake.',
+    body: 'SaaS founders publish a result with inputs, deliverables, success criteria, and an SLA — not a vague gig. Buyers pick the outcome and fill a structured intake.',
   },
   {
     n: '02',
-    title: 'AI agents execute; humans QA',
-    body: 'Agents do 60–80% of the work: research, drafts, and instrumentation. A human specialist checks brand, measurement, and the published success definition.',
+    title: 'AI executes 60–80%; humans QA',
+    body: 'Agents research, draft, and instrument. A human specialist checks brand, measurement, and the published success definition before anything is called done.',
   },
   {
     n: '03',
-    title: 'Proof of work + success-based pricing',
-    body: 'A proof report is auto-generated (before/after, metrics, logs). You pay the base fee; optional bonuses only land if the outcome does.',
+    title: 'Proof unlocks payment',
+    body: 'Funds stay in escrow until success criteria are met and proof is accepted. Optional bonuses only land if the measured outcome does.',
+  },
+]
+
+const FAQ = [
+  {
+    q: 'Is this Fiverr with extra steps?',
+    a: 'No. Listings are standardized outcomes with SLAs and success criteria. Payment is held until proof is accepted — you are buying a result, not hours.',
+  },
+  {
+    q: 'Who is this for?',
+    a: 'Indie and SaaS founders who need Auth, billing, onboarding, churn, docs, or instrumentation shipped as a scoped outcome — plus SaaS specialists who sell those outcomes.',
+  },
+  {
+    q: 'What is a retainer here?',
+    a: 'A monthly scoped outcome (instrumentation health, docs freshness, integration triage) with a base fee and a published success metric — not an open Slack channel.',
+  },
+  {
+    q: 'Is Stripe really connected?',
+    a: 'Checkout and measurement are mocked for this Pages demo. The UI is structured so Supabase auth and Stripe Connect can replace the repository later.',
   },
 ]
 
 export function Home() {
-  const { outcomes, users } = useStore()
-  const featured = useMemo(() => outcomes.filter((o) => o.status === 'live'), [outcomes])
+  const { outcomes, users, orders } = useStore()
+  const featured = useMemo(() => featuredOutcomes(outcomes), [outcomes])
   const [index, setIndex] = useState(0)
+  const gmv = orders.reduce((sum, o) => sum + o.basePrice + (o.bonusPrice ?? 0), 0)
 
   useEffect(() => {
     if (featured.length === 0) return
@@ -47,32 +69,46 @@ export function Home() {
             <span className="badge bg-white/10 text-indigo-100 ring-1 ring-inset ring-white/15">Outcomes, not gigs</span>
             <span className="badge bg-white/10 text-emerald-100 ring-1 ring-inset ring-white/15">Success-based pricing</span>
             <span className="badge bg-white/10 text-slate-100 ring-1 ring-inset ring-white/15">
-              AI agents do the work, humans ensure quality
+              AI + human QA
             </span>
           </div>
-          <h1 className="mt-6 max-w-3xl text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-            Fiverr for outcome-priced AI work
-          </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-            Sell and buy fixed-scope AI services with clear results, SLAs, and success-based pricing.
+          <TextsReveal
+            className="mt-6 max-w-3xl"
+            lines={[
+              {
+                text: 'Outcome-priced work for micro-SaaS',
+                as: 'h1',
+                className: 'text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl',
+              },
+              {
+                text: 'AI executes 60–80% of the work. Humans QA. Proof unlocks payment held in escrow until success criteria are met.',
+                as: 'p',
+                className: 'mt-5 text-base leading-7 text-slate-300 sm:text-lg',
+              },
+            ]}
+          />
+          <p className="hero-shimmer mt-4 max-w-2xl text-sm text-indigo-200">
+            <ShimmerText text="The outcome layer for indie founders and SaaS specialists — not a generic gig board." />
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link to="/marketplace" className="btn-primary px-5 py-3">
-              Browse outcomes
+              Browse SaaS outcomes
             </Link>
             <Link to="/signup?role=seller" className="btn bg-white/10 text-white ring-1 ring-inset ring-white/20 hover:bg-white/15">
-              Start selling
+              Sell an outcome
             </Link>
           </div>
-          <p className="mt-6 text-sm text-slate-400">
-            Two verticals: Creator/Brand Outcomes and SaaS Builder Outcomes. Proof of work is auto-generated.
-          </p>
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <HeroStat label="Platform GMV (this browser)" value={formatMoney(gmv)} />
+            <HeroStat label="Live outcomes" value={String(outcomes.filter((o) => o.status === 'live').length)} />
+            <HeroStat label="Orders tracked" value={String(orders.length)} />
+          </div>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-16">
         <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">How it works</p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">From intake to proof in three steps</h2>
+        <h2 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">From intake to released escrow</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {STEPS.map((step) => (
             <div key={step.n} className="card p-6">
@@ -88,8 +124,11 @@ export function Home() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Featured outcomes</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Featured for SaaS builders</p>
               <h2 className="mt-2 text-2xl font-bold text-slate-900">Standardized offers, not open-ended gigs</h2>
+              <p className="mt-2 max-w-xl text-sm text-slate-600">
+                The rail prefers live SaaS Builder outcomes. Creator/Brand remains available in the marketplace.
+              </p>
             </div>
             <div className="flex gap-2">
               <button
@@ -123,19 +162,38 @@ export function Home() {
       <section className="mx-auto max-w-6xl px-4 py-16">
         <div className="card grid gap-8 p-8 md:grid-cols-2">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">Creator / Brand Outcomes</h2>
+            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Primary wedge</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">SaaS Builder Outcomes</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Abandoned-cart recovery, SEO rewrites, missed-call booking, and content sprints priced to a result.
+              Auth/SSO, waitlist-to-paid, churn save, migrations, compliance lite, plus retainers for instrumentation, docs, and integration triage.
             </p>
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">SaaS Builder Outcomes</h2>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Also available</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Creator / Brand Outcomes</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Zero-touch onboarding, integration packs, analytics instrumentation, billing cleanup, and docs overhauls.
+              Abandoned-cart recovery, SEO rewrites, missed-call booking, and content sprints — still priced to a result.
             </p>
           </div>
         </div>
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-slate-900">FAQ</h2>
+          <div className="mt-6">
+            <Accordion items={FAQ} />
+          </div>
+        </div>
       </section>
+    </div>
+  )
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-white">
+        <NumberPop value={value} />
+      </p>
     </div>
   )
 }

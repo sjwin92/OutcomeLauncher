@@ -1,14 +1,17 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { OutcomeNotGigBadge, VerifiedBadge } from '../components/StatusBadge'
+import { CompletionRate, KindBadge, OutcomeNotGigBadge, StackBadges, VerifiedBadge } from '../components/StatusBadge'
 import { Alert, Button, Field, TextArea, TextInput } from '../components/ui'
 import { useStore } from '../data/store'
 import type { IntakeField } from '../data/types'
-import { formatMoney, formatSla, outcomePriceLabel } from '../lib/utils'
+import { formatMoney, formatSla, outcomePriceLabel, sellerStack } from '../lib/utils'
+import { Accordion, ModalFrame, ToggleSwitch } from '../motion/MotionBits'
+import { useToast } from '../motion/ToastProvider'
 
 export function OutcomePage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { pushToast } = useToast()
   const { outcomes, users, currentUser, createOrder } = useStore()
   const outcome = outcomes.find((o) => o.id === id)
   const seller = outcome ? users.find((u) => u.id === outcome.sellerId) : undefined
@@ -17,16 +20,19 @@ export function OutcomePage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [payOpen, setPayOpen] = useState(false)
   const [formError, setFormError] = useState('')
+  const [measurement, setMeasurement] = useState(false)
+  const [bonusEstimate, setBonusEstimate] = useState(150)
 
   const hero = useMemo(() => {
     if (!outcome) return ''
-    return `We'll ${outcome.title} in ${formatSla(outcome.slaHours)} for ${outcomePriceLabel(outcome)}.`
+    const verb = outcome.kind === 'retainer' ? 'run' : 'deliver'
+    return `We'll ${verb} ${outcome.title} in ${formatSla(outcome.slaHours)} for ${outcomePriceLabel(outcome)}.`
   }, [outcome])
 
   if (!outcome) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
-        <Alert tone="error">That outcome does not exist in this demo session.</Alert>
+        <Alert tone="error">That outcome does not exist.</Alert>
         <Link to="/marketplace" className="btn-secondary mt-4 inline-flex">
           Back to marketplace
         </Link>
@@ -66,12 +72,16 @@ export function OutcomePage() {
   }
 
   function completePay() {
-    const result = createOrder(outcomeId, intake)
+    const result = createOrder(outcomeId, intake, {
+      measurementConnected: measurement,
+      bonusPrice: measurement ? bonusEstimate : undefined,
+    })
     if (!result.ok || !result.order) {
       setFormError(result.error ?? 'Payment failed.')
       setPayOpen(false)
       return
     }
+    pushToast('Payment escrowed until proof is accepted')
     navigate(`/confirmation/${result.order.id}`)
   }
 
@@ -79,6 +89,7 @@ export function OutcomePage() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="flex flex-wrap gap-2">
         <OutcomeNotGigBadge />
+        <KindBadge kind={outcome.kind} />
         {seller?.verified ? <VerifiedBadge /> : null}
         <span className="badge bg-slate-100 text-slate-700">
           {outcome.vertical} · {outcome.category}
@@ -86,11 +97,16 @@ export function OutcomePage() {
       </div>
       <h1 className="mt-4 max-w-4xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{hero}</h1>
       <p className="mt-3 max-w-3xl text-slate-600">{outcome.description}</p>
-      <p className="mt-2 text-sm text-slate-500">
-        Sold by {seller?.name ?? 'Seller'}
-        {seller?.company ? ` · ${seller.company}` : ''} · {outcome.stats.totalOrders} orders ·{' '}
-        {Math.round(outcome.stats.completionRate * 100)}% completion
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <p className="text-sm text-slate-500">
+          Sold by {seller?.name ?? 'Seller'}
+          {seller?.company ? ` · ${seller.company}` : ''}
+        </p>
+        <CompletionRate rate={outcome.stats.completionRate} orders={outcome.stats.totalOrders} />
+      </div>
+      <div className="mt-4">
+        <StackBadges stack={sellerStack(seller, outcome)} />
+      </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -112,11 +128,40 @@ export function OutcomePage() {
           <section className="card p-6">
             <h2 className="text-lg font-semibold text-slate-900">Success definition & measurement</h2>
             <p className="mt-2 text-sm leading-6 text-slate-700">{outcome.successCriteria}</p>
+            {outcome.monthlyMetric ? (
+              <p className="mt-3 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+                Monthly metric: {outcome.monthlyMetric}
+              </p>
+            ) : null}
             {outcome.bonusDescription ? (
               <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                 Performance bonus: {outcome.bonusDescription}
               </p>
             ) : null}
+            <div className="mt-5 rounded-xl border border-slate-200 p-4">
+              <ToggleSwitch
+                checked={measurement}
+                onChange={setMeasurement}
+                label="Connect Stripe / analytics (mocked)"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Unlock measured-bonus UI. No real credentials leave this browser.
+              </p>
+              {measurement ? (
+                <div className="mt-4 space-y-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                  <p className="font-semibold">Measured bonus unlocked</p>
+                  <p>Mock feed: checkout events + activation funnel attached to this order.</p>
+                  <Field label="Bonus estimate if criteria hit (USD)">
+                    <TextInput
+                      type="number"
+                      min={0}
+                      value={bonusEstimate}
+                      onChange={(e) => setBonusEstimate(Number(e.target.value) || 0)}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
           </section>
 
           <section className="card p-6">
@@ -134,32 +179,26 @@ export function OutcomePage() {
                 />
               ))}
               <Button type="submit" className="w-full sm:w-auto" disabled={outcome.status !== 'live'}>
-                {outcome.status === 'live' ? `Continue to payment · ${formatMoney(outcome.basePrice)}` : 'Not live'}
+                {outcome.status === 'live' ? `Continue · escrow ${formatMoney(outcome.basePrice)}` : 'Not live'}
               </Button>
             </form>
           </section>
 
           {outcome.faqs.length > 0 ? (
             <section className="card p-6">
-              <h2 className="text-lg font-semibold text-slate-900">FAQ</h2>
-              <dl className="mt-4 space-y-4">
-                {outcome.faqs.map((faq) => (
-                  <div key={faq.q}>
-                    <dt className="text-sm font-semibold text-slate-900">{faq.q}</dt>
-                    <dd className="mt-1 text-sm text-slate-600">{faq.a}</dd>
-                  </div>
-                ))}
-              </dl>
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">FAQ</h2>
+              <Accordion items={outcome.faqs} />
             </section>
           ) : null}
         </div>
 
         <aside className="card h-fit p-6">
-          <p className="text-sm text-slate-500">Base fee</p>
+          <p className="text-sm text-slate-500">{outcome.kind === 'retainer' ? 'Monthly base' : 'Base fee'}</p>
           <p className="text-3xl font-bold text-slate-900">{outcomePriceLabel(outcome)}</p>
           <p className="mt-1 text-sm text-slate-600">SLA {formatSla(outcome.slaHours)}</p>
           {outcome.bonusFormula ? <p className="mt-3 text-sm text-emerald-700">Bonus: {outcome.bonusFormula}</p> : null}
           <ul className="mt-4 space-y-2 text-sm text-slate-600">
+            <li>Payment held in escrow until success criteria are met and proof is accepted.</li>
             <li>Capacity: {outcome.capacity} concurrent orders</li>
             <li>Avg time to outcome: {outcome.stats.avgTimeToOutcomeHours || '—'}h</li>
             <li>Mock Stripe checkout — no real charge</li>
@@ -167,13 +206,14 @@ export function OutcomePage() {
         </aside>
       </div>
 
-      {payOpen ? (
-        <PayModal
-          amount={outcome.basePrice}
-          onClose={() => setPayOpen(false)}
-          onConfirm={completePay}
-        />
-      ) : null}
+      <PayModal
+        open={payOpen}
+        amount={outcome.basePrice}
+        measurement={measurement}
+        bonus={measurement ? bonusEstimate : 0}
+        onClose={() => setPayOpen(false)}
+        onConfirm={completePay}
+      />
     </div>
   )
 }
@@ -198,21 +238,26 @@ function IntakeControl({
   return (
     <Field label={`${field.label}${field.required ? '' : ' (optional)'}`} error={error}>
       {field.type === 'textarea' ? (
-        <TextArea {...common} />
+        <TextArea className={error ? 't-input is-error is-shaking' : 't-input'} {...common} />
       ) : (
-        <TextInput type={field.type === 'number' ? 'number' : field.type} {...common} />
+        <TextInput className={error ? 't-input is-error is-shaking' : 't-input'} type={field.type === 'number' ? 'number' : field.type} {...common} />
       )}
     </Field>
   )
 }
 
-/** Mock Stripe payment sheet. Accepts any 16-digit card in this demo. */
 function PayModal({
+  open,
   amount,
+  measurement,
+  bonus,
   onClose,
   onConfirm,
 }: {
+  open: boolean
   amount: number
+  measurement: boolean
+  bonus: number
   onClose: () => void
   onConfirm: () => void
 }) {
@@ -245,11 +290,16 @@ function PayModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
-      <div className="card w-full max-w-md p-6">
-        <p className="badge bg-indigo-50 text-indigo-700">Stripe test mode</p>
-        <h2 className="mt-3 text-lg font-semibold text-slate-900">Pay {formatMoney(amount)}</h2>
-        <p className="mt-1 text-sm text-slate-600">No real charge. Any 16-digit card works in this demo.</p>
+    <ModalFrame open={open} onClose={onClose}>
+      <div className="card p-6">
+        <p className="badge bg-indigo-50 text-indigo-700">Stripe test mode · escrow</p>
+        <h2 className="mt-3 text-lg font-semibold text-slate-900">Escrow {formatMoney(amount)}</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Funds are held until success criteria are met and proof is accepted. No real charge.
+        </p>
+        {measurement ? (
+          <p className="mt-2 text-xs text-emerald-700">Measured bonus estimate reserved: {formatMoney(bonus)}</p>
+        ) : null}
         <form className="mt-4 space-y-3" onSubmit={pay}>
           {error ? <Alert tone="error">{error}</Alert> : null}
           <Field label="Name on card">
@@ -271,11 +321,11 @@ function PayModal({
               Cancel
             </Button>
             <Button type="submit" className="flex-1" disabled={busy}>
-              {busy ? 'Processing…' : `Pay ${formatMoney(amount)}`}
+              {busy ? 'Escrowing…' : `Hold ${formatMoney(amount)}`}
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </ModalFrame>
   )
 }
